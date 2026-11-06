@@ -1,1 +1,1 @@
-# Divinity-Releases
+# Friloverse-Skins-Releases
