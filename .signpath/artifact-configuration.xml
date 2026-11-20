@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Artifact configuration for SignPath (slug: initial). Paste it into the project's "Artifact
+  configurations" in SignPath, or keep it in step with what is there.
+
+  The release workflow (.github/workflows/release.yml) uploads three small zips, each holding programs
+  at the top level: the programs of the app, then the plain setup, then the complete setup. Every
+  .exe, .dll and .node file in them is signed with Authenticode (SHA-256).
+-->
+<artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
+  <zip-file>
+    <pe-file-set>
+      <include path="*.exe" />
+      <include path="*.dll" />
+      <include path="*.node" />
+      <authenticode-sign />
+    </pe-file-set>
+  </zip-file>
+</artifact-configuration>

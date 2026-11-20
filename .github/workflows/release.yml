@@ -1,0 +1,254 @@
+# Builds Friloverse on GitHub and has SignPath (SignPath Foundation, free for open source) sign it.
+# Run it by hand from the Actions tab. See .signpath/README.md for the one-time setup.
+#
+# Signing happens three times because each stage is built from the one before:
+#   1. the programs of the app (Electron, ltk_launcher.exe, LeagueToolFlop.dll, koffi.node, Update.exe)
+#   2. the plain setup, which holds the signed app
+#   3. the complete setup, which holds the signed plain setup
+# Each is a SignPath signing request that an approver must approve. scripts/sign.mjs (with
+# FRILOVERSE_SIGN_EXTERNAL=1) collects what to sign and takes the signed files back from a cache.
+name: Release build
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish the signed update to GitHub Releases when everything has passed
+        type: boolean
+        default: false
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 350
+    permissions:
+      contents: write   # only used by the publish step
+      actions: read     # SignPath reads this run and its artifacts
+    env:
+      FRILOVERSE_SIGN_EXTERNAL: '1'
+      FRILOVERSE_REQUIRE_SIGNING: '1'
+      SIGNPATH_ORG: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+      SIGNPATH_PROJECT: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+      SIGNPATH_POLICY: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+      SIGNPATH_CONFIG: ${{ vars.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG }}
+    steps:
+      - name: Check the SignPath settings exist
+        shell: bash
+        env:
+          SIGNPATH_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+        run: |
+          for name in SIGNPATH_ORG SIGNPATH_PROJECT SIGNPATH_POLICY; do
+            if [ -z "${!name}" ]; then echo "::error::Repository variable for $name is not set (see .signpath/README.md)."; exit 1; fi
+          done
+          if [ -z "$SIGNPATH_TOKEN" ]; then echo "::error::Secret SIGNPATH_API_TOKEN is not set."; exit 1; fi
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          cache: npm
+
+      - run: npm ci
+
+      - name: Version
+        id: version
+        shell: bash
+        run: |
+          version=$(node -p "require('./package.json').version")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "shown=${version%.0}" >> "$GITHUB_OUTPUT"
+
+      # The previous release's full package makes Squirrel build a small delta.
+      - name: Fetch the previous release for the delta
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName || true)
+          if [ -z "$tag" ]; then echo "No earlier release: no delta."; exit 0; fi
+          previous="${tag#v}"
+          if [ "$previous" = "${{ steps.version.outputs.version }}" ]; then echo "::error::$tag is already released. Raise the version in package.json."; exit 1; fi
+          mkdir -p "dist/$previous/setup"
+          gh release download "$tag" --repo "$GITHUB_REPOSITORY" --dir "dist/$previous/setup" --pattern RELEASES --pattern '*-full.nupkg'
+
+      # Signed copies are kept by the hash of the unsigned file, so the 250 MB Electron exe stays the same
+      # file between releases and deltas stay small (scripts/sign.mjs).
+      - name: Restore signed copies
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: artifacts/signed-cache
+          key: signed-cache-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: signed-cache-
+
+      # A cache is only trusted for what Windows itself says is signed by SignPath Foundation.
+      - name: Check the restored copies
+        shell: pwsh
+        run: |
+          $dir = 'artifacts/signed-cache'
+          if (-not (Test-Path $dir)) { exit 0 }
+          foreach ($file in Get-ChildItem $dir -File) {
+            $signature = Get-AuthenticodeSignature $file.FullName
+            if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'SignPath Foundation') {
+              Write-Host "Dropping $($file.Name): $($signature.Status)"
+              Remove-Item $file.FullName
+            }
+          }
+
+      # Pass 1: build once to find every program that needs a signature. The result is thrown away.
+      - name: Pass 1 - collect the programs
+        shell: bash
+        env:
+          FRILOVERSE_SIGN_COLLECT: artifacts/signpath/app
+          FRILOVERSE_SIGN_COLLECT_SKIP: 'Setup\.exe$'
+        run: |
+          npm run build
+          rm -rf "dist/${{ steps.version.outputs.version }}"
+
+      - name: Upload the programs
+        id: upload-app
+        if: hashFiles('artifacts/signpath/app/*') != ''
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: unsigned-app
+          path: artifacts/signpath/app/*
+          if-no-files-found: error
+
+      - name: Sign the programs
+        if: steps.upload-app.outcome == 'success'
+        uses: signpath/github-action-submit-signing-request@4a84eb4ad763290f059275786f2deed97c2c672b # v3.1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ env.SIGNPATH_ORG }}
+          project-slug: ${{ env.SIGNPATH_PROJECT }}
+          signing-policy-slug: ${{ env.SIGNPATH_POLICY }}
+          artifact-configuration-slug: ${{ env.SIGNPATH_CONFIG }}
+          github-artifact-id: ${{ steps.upload-app.outputs.artifact-id }}
+          wait-for-completion-timeout-in-seconds: 14400
+          output-artifact-directory: artifacts/signpath/app-signed
+
+      - name: Keep the signed programs
+        if: steps.upload-app.outcome == 'success'
+        shell: bash
+        run: node scripts/signpath.mjs import artifacts/signpath/app-signed
+
+      # Pass 2: the real build. Every program now has its signed copy; only the plain setup is new.
+      - name: Pass 2 - build with the signed programs
+        shell: bash
+        env:
+          FRILOVERSE_SIGN_COLLECT: artifacts/signpath/setup
+          FRILOVERSE_SIGN_COLLECT_SKIP: 'Complete-Setup\.exe$'
+        run: |
+          npm run build
+          # It embedded the unsigned plain setup. It is built again below.
+          rm -f dist/${{ steps.version.outputs.version }}/setup/*-Complete-Setup.exe
+
+      - name: Upload the plain setup
+        id: upload-setup
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: unsigned-setup
+          path: artifacts/signpath/setup/*
+          if-no-files-found: error
+
+      - name: Sign the plain setup
+        uses: signpath/github-action-submit-signing-request@4a84eb4ad763290f059275786f2deed97c2c672b # v3.1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ env.SIGNPATH_ORG }}
+          project-slug: ${{ env.SIGNPATH_PROJECT }}
+          signing-policy-slug: ${{ env.SIGNPATH_POLICY }}
+          artifact-configuration-slug: ${{ env.SIGNPATH_CONFIG }}
+          github-artifact-id: ${{ steps.upload-setup.outputs.artifact-id }}
+          wait-for-completion-timeout-in-seconds: 14400
+          output-artifact-directory: artifacts/signpath/setup-signed
+
+      - name: Put the signed plain setup in place and build the complete setup
+        shell: bash
+        env:
+          FRILOVERSE_SIGN_COLLECT: artifacts/signpath/complete
+        run: |
+          node scripts/signpath.mjs import artifacts/signpath/setup-signed
+          node scripts/signpath.mjs apply "dist/${{ steps.version.outputs.version }}/setup/Friloverse-${{ steps.version.outputs.shown }}-Setup.exe"
+          node scripts/build-complete.mjs
+
+      - name: Upload the complete setup
+        id: upload-complete
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: unsigned-complete-setup
+          path: artifacts/signpath/complete/*
+          if-no-files-found: error
+
+      - name: Sign the complete setup
+        uses: signpath/github-action-submit-signing-request@4a84eb4ad763290f059275786f2deed97c2c672b # v3.1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ env.SIGNPATH_ORG }}
+          project-slug: ${{ env.SIGNPATH_PROJECT }}
+          signing-policy-slug: ${{ env.SIGNPATH_POLICY }}
+          artifact-configuration-slug: ${{ env.SIGNPATH_CONFIG }}
+          github-artifact-id: ${{ steps.upload-complete.outputs.artifact-id }}
+          wait-for-completion-timeout-in-seconds: 14400
+          output-artifact-directory: artifacts/signpath/complete-signed
+
+      - name: Put the signed complete setup in place
+        shell: bash
+        run: |
+          node scripts/signpath.mjs import artifacts/signpath/complete-signed
+          node scripts/signpath.mjs apply "dist/${{ steps.version.outputs.version }}/setup/Friloverse-${{ steps.version.outputs.shown }}-Complete-Setup.exe"
+
+      # Windows has the last word: every program Friloverse itself ships must be validly signed by SignPath Foundation.
+      - name: Verify the signatures
+        shell: pwsh
+        run: |
+          $root = "dist/${{ steps.version.outputs.version }}"
+          $names = @('Friloverse-Skins.exe', 'ltk_launcher.exe', 'LeagueToolFlop.dll', 'koffi.node')
+          $files = @(Get-ChildItem "$root/setup" -Filter '*Setup.exe')
+          foreach ($name in $names) { $files += @(Get-ChildItem "$root/Friloverse-Skins-win32-x64" -Recurse -Filter $name) }
+          if ($files.Count -lt 6) { throw "Expected at least 6 programs to check, found $($files.Count)." }
+          $failed = $false
+          foreach ($file in $files) {
+            $signature = Get-AuthenticodeSignature $file.FullName
+            $ok = $signature.Status -eq 'Valid' -and $signature.SignerCertificate.Subject -match 'SignPath Foundation'
+            Write-Host ("{0,-8} {1}" -f $(if ($ok) { 'ok' } else { 'FAILED' }), $file.Name)
+            if (-not $ok) { Write-Host "         $($signature.Status): $($signature.StatusMessage)"; $failed = $true }
+          }
+          if ($failed) { throw 'Some programs are not signed by SignPath Foundation.' }
+
+      - name: Check the update against the feed rules
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/publish-release.mjs
+
+      - name: Keep the build
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: friloverse-${{ steps.version.outputs.shown }}
+          path: dist/${{ steps.version.outputs.version }}/setup/*
+          retention-days: 30
+
+      - name: Publish the update
+        if: inputs.publish
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/publish-release.mjs --publish
+
+      # Saved even when a later step fails, so a signing request that was approved is never asked again.
+      - name: Save signed copies
+        if: always()
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: artifacts/signed-cache
+          key: signed-cache-${{ github.run_id }}-${{ github.run_attempt }}

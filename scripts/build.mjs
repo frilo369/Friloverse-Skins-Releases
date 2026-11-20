@@ -30,7 +30,7 @@ const paths=await packager({dir:'.',name:'Friloverse-Skins',platform:'win32',arc
     const locales=path.join(buildPath,'locales');
     for(const file of await readdir(locales))if(file!=='en-US.pak')await rm(path.join(locales,file));
   }],
-  ignore:[/^\/(?:AGENTS|CLAUDE|CODEX-HANDOFF)\.md$/,/^\/\.gitignore$/,/^\/\.claude(?:\/|$)/,/^\/\.wrangler(?:\/|$)/,/\.log$/i,/^\/dist(?:\/|$)/,/^\/artifacts(?:\/|$)/,/^\/tests(?:\/|$)/,/^\/scripts(?:\/|$)/,/^\/tools(?:\/|$)/,/^\/\.git(?:\/|$)/,/^\/logs-worker(?:\/|$)/,/^\/watch-logs(?:\/|$)/,/^\/logs-reports(?:\/|$)/,/^\/native\/ltf\/.*\.cpp$/],
+  ignore:[/^\/(?:AGENTS|CLAUDE|CODEX-HANDOFF)\.md$/,/^\/\.gitignore$/,/^\/\.github(?:\/|$)/,/^\/\.signpath(?:\/|$)/,/^\/\.claude(?:\/|$)/,/^\/\.wrangler(?:\/|$)/,/\.log$/i,/^\/dist(?:\/|$)/,/^\/artifacts(?:\/|$)/,/^\/tests(?:\/|$)/,/^\/scripts(?:\/|$)/,/^\/tools(?:\/|$)/,/^\/\.git(?:\/|$)/,/^\/logs-worker(?:\/|$)/,/^\/watch-logs(?:\/|$)/,/^\/logs-reports(?:\/|$)/,/^\/native\/ltf\/.*\.cpp$/],
   win32metadata:{CompanyName:'FrYiLo',FileDescription:'Friloverse champion-select companion',ProductName:'Friloverse'},
   ...(windowsSign?{windowsSign}:{})});
 // A clean PC may not have the Visual C++ Redistributable: nothing shipped may need it.

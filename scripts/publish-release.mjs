@@ -30,7 +30,11 @@ const feed=`https://update.electronjs.org/${REPO}/win32-x64/0.0.1/RELEASES`;
 
 // The GH_TOKEN in the environment is a fine-grained token that GitHub refused to
 // let create this repo. The owner's own gh login has the `repo` permission.
-const {GH_TOKEN:_a,GITHUB_TOKEN:_b,...env}=process.env;
+// In the release workflow (GitHub Actions) the job's own GITHUB_TOKEN, passed as GH_TOKEN, is the
+// login: it can write releases to this repository but cannot ask who it is or create repositories.
+const CI=process.env.GITHUB_ACTIONS==='true';
+const {GH_TOKEN:_a,GITHUB_TOKEN:_b,...clean}=process.env;
+const env=CI?process.env:clean;
 const gh=(...args)=>spawnSync('gh',args,{env,encoding:'utf8',windowsHide:true});
 const exists=file=>stat(file).then(info=>info,()=>null);
 async function sha1(file){const hash=createHash('sha1');for await(const chunk of createReadStream(file))hash.update(chunk);return hash.digest('hex').toUpperCase();}
@@ -81,7 +85,7 @@ if(await exists(releases)&&await exists(nupkg)){
 }
 if(spawnSync('git',['status','--porcelain'],{encoding:'utf8'}).stdout.trim())notes.push('This folder has uncommitted changes: commit them so the release matches a commit.');
 
-const login=gh('api','user','--jq','.login');
+const login=CI?{status:0,stdout:OWNER}:gh('api','user','--jq','.login');
 if(login.status!==0)problems.push('Not signed in to gh: run gh auth login.');
 else if(login.stdout.trim()!==OWNER)problems.push(`gh is signed in as ${login.stdout.trim()}, not ${OWNER}.`);
 const repoFound=login.status===0&&gh('repo','view',REPO,'--json','visibility,name').status===0;
@@ -112,7 +116,8 @@ if(!repoFound){
   console.log(`Created ${REPO}.`);
 }
 // gh uploads to a draft and publishes last, so the feed never sees a half-uploaded release.
-must('Creating the release',gh('release','create',tag,...files,'--repo',REPO,'--title',`Friloverse ${shown}`,'--notes',`In-app update. Installed copies of Friloverse update themselves from this release.`));
+// From the workflow the tag goes on the commit that was built, not on whatever the branch holds later.
+must('Creating the release',gh('release','create',tag,...files,...(CI&&process.env.GITHUB_SHA?['--target',process.env.GITHUB_SHA]:[]),'--repo',REPO,'--title',`Friloverse ${shown}`,'--notes',`In-app update. Installed copies of Friloverse update themselves from this release.`));
 console.log(`Released: https://github.com/${REPO}/releases/tag/${tag}`);
 // One look, no waiting: installed copies check hourly anyway. --check-feed looks again.
 await delay(5000);

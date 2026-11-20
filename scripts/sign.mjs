@@ -8,6 +8,13 @@
 //   FRILOVERSE_SIGN_PFX + FRILOVERSE_SIGN_PASSWORD  a .pfx file
 //   FRILOVERSE_SIGN_PARAMS      everything signtool needs between `sign` and the file name, for
 //                               cloud signing (Azure Artifact Signing's /dlib and /dmdf, a token's /csp)
+//   FRILOVERSE_SIGN_EXTERNAL=1  signing happens outside this process (SignPath in GitHub Actions, see
+//                               scripts/signpath.mjs and .github/workflows/release.yml). A file is taken
+//                               from the signed-copy cache; one that is not there is copied to the folder
+//                               in FRILOVERSE_SIGN_COLLECT (named by its cache key) and left unsigned, or
+//                               fails the build when no folder is set. FRILOVERSE_SIGN_COLLECT_SKIP (a
+//                               regular expression for file names) leaves matching files unsigned and
+//                               uncollected, for files a later pass rebuilds.
 // Optional: FRILOVERSE_SIGN_TIMESTAMP (default http://timestamp.digicert.com; any RFC 3161 server),
 //           FRILOVERSE_SIGNTOOL (signtool.exe; default the one bundled with @electron/windows-sign),
 //           FRILOVERSE_REQUIRE_SIGNING=1 (the build fails instead of warning when nothing is configured).
@@ -31,11 +38,15 @@ import {fileURLToPath} from 'node:url';
 
 const here=path.dirname(fileURLToPath(import.meta.url));
 const root=path.resolve(here,'..');
-const CACHE=path.join(root,'artifacts','signed-cache');
+export const CACHE=path.join(root,'artifacts','signed-cache');
 const DEFAULT_TIMESTAMP='http://timestamp.digicert.com';
 
 /** The signing setup from the environment, or null when none is configured. */
 export function signingConfig(env=process.env){
+  // The signer is another program's: params only gives the cache a fixed identity of its own.
+  if(env.FRILOVERSE_SIGN_EXTERNAL==='1')return {thumbprint:'',pfx:'',password:'',params:'signpath',timestamp:'signpath',signtool:'',
+    external:true,collect:env.FRILOVERSE_SIGN_COLLECT?path.resolve(env.FRILOVERSE_SIGN_COLLECT):'',
+    skip:env.FRILOVERSE_SIGN_COLLECT_SKIP?new RegExp(env.FRILOVERSE_SIGN_COLLECT_SKIP,'i'):null};
   const thumbprint=(env.FRILOVERSE_SIGN_THUMBPRINT||'').replace(/\s+/g,'');
   const pfx=env.FRILOVERSE_SIGN_PFX||'';
   const password=env.FRILOVERSE_SIGN_PASSWORD||'';
@@ -86,7 +97,7 @@ function run(program,args){
   });
 }
 
-export const stats={signed:0,cached:0,skipped:0};
+export const stats={signed:0,cached:0,skipped:0,collected:0};
 
 /** Signs one file in place. `exec` is replaceable for tests. */
 export async function signFile(file,{config=signingConfig(),exec=run,cache=CACHE}={}){
@@ -99,6 +110,15 @@ export async function signFile(file,{config=signingConfig(),exec=run,cache=CACHE
     await copyFile(cached,file);
     stats.cached++;
     return 'cached';
+  }
+  if(config.external){
+    // A file the current pass will rebuild anyway (a setup that embeds files still to be signed).
+    if(config.skip?.test(path.basename(file)))return 'left';
+    if(!config.collect)throw new Error(`${path.basename(file)} has no signed copy yet, and FRILOVERSE_SIGN_COLLECT is not set to collect it.`);
+    await mkdir(config.collect,{recursive:true});
+    await copyFile(file,path.join(config.collect,path.basename(cached)));
+    stats.collected++;
+    return 'collected';
   }
   if(!existsSync(config.signtool))throw new Error(`signtool.exe was not found at ${config.signtool}. Set FRILOVERSE_SIGNTOOL.`);
   await exec(config.signtool,signArgs(config,file));
@@ -114,7 +134,7 @@ export async function signFile(file,{config=signingConfig(),exec=run,cache=CACHE
 export default async function hook(file){
   const name=path.basename(file);
   const result=await signFile(file);
-  if(result==='signed')console.log(`signed ${name}`);
+  if(result==='signed'||result==='collected'||result==='left')console.log(`${result} ${name}`);
 }
 
 export const hookModulePath=fileURLToPath(import.meta.url);
