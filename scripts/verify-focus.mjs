@@ -1,0 +1,10 @@
+import {spawn} from 'node:child_process';
+import {mkdtemp,rm} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import path from 'node:path';
+import electron from 'electron';
+const work=await mkdtemp(path.join(tmpdir(),'friloverse-focus-'));
+const env={...process.env,FRILOVERSE_FOCUS_DIR:work};delete env.ELECTRON_RUN_AS_NODE;
+const child=spawn(electron,['scripts/verify-focus.cjs'],{stdio:'inherit',env,windowsHide:true});
+child.on('exit',async code=>{await rm(work,{recursive:true,force:true}).catch(()=>{});process.exit(code??1);});
+child.on('error',async error=>{console.error(error.message);await rm(work,{recursive:true,force:true}).catch(()=>{});process.exit(1);});

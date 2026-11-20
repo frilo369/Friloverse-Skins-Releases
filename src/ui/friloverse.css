@@ -1,0 +1,15 @@
+.grid { grid-template-columns:repeat(4,1fr); }
+.who {width:250px}
+.tabs {gap:16px}
+.card .art-box {display:block;width:100%}
+.fallback-art {display:grid;place-items:center;height:100%;background:radial-gradient(ellipse at 65% 15%,#1c2d47,#0a1320 70%);color:#e2b965;font:700 44px Cinzel,Georgia,serif;letter-spacing:5px}
+.fallback-art small {position:absolute;bottom:10px;font-size:10px;letter-spacing:2px;color:#b9c6dc}
+.check {font-size:19px;color:#3ddc84}
+.footer {margin:8px 2px 0;color:#b9c6dc;font-size:11px;display:flex;justify-content:space-between;gap:10px}
+.footer-actions {display:flex;align-items:center;gap:10px}
+.disable-skin {padding:3px 12px;border:1px solid #c4a259;border-radius:11px;background:linear-gradient(#142033,#0a1320);color:#f4ead2;cursor:pointer;font-size:11px}
+.disable-skin:hover:not(:disabled) {border-color:#ffe590;box-shadow:0 0 8px #ffbb4c66}
+.disable-skin:disabled {opacity:.5;cursor:default}
+.preview-label {color:#e2b965}
+.card.broken {opacity:.55;cursor:default}
+.name {max-width:175px}

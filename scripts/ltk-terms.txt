@@ -1,0 +1,8 @@
+Friloverse uses LTK Manager, separate free software by LeagueToolkit.
+
+Setup downloads LTK Manager's original installer from its official release, checks the file, and installs it in the background. It is not part of Friloverse. Windows may ask for permission once, because LTK Manager installs for every user of this PC.
+
+LTK Manager and its licence:
+https://github.com/LeagueToolkit/ltk-manager
+
+Installing LTK Manager means you accept its licence.

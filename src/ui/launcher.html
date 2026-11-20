@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; img-src 'self'">
+    <title>Open Friloverse</title>
+    <style>
+      html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: transparent; }
+      button {
+        width: 100%; height: 100%; margin: 0; padding: 0; box-sizing: border-box; border: 0;
+        display: grid; place-items: center; cursor: pointer; outline: none; background: none;
+        transition: transform .14s ease, filter .14s ease;
+      }
+      button:hover { transform: scale(.97); filter: brightness(1.2); }
+      button:active { transform: scale(.92); }
+      img { width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
+      @media (prefers-reduced-motion: reduce) { button { transition: none; } }
+    </style>
+  </head>
+  <body>
+    <button id="open" type="button" title="Open Friloverse" aria-label="Open Friloverse">
+      <img src="friloverse-icon.webp" alt="" draggable="false">
+    </button>
+    <script src="launcher.js"></script>
+  </body>
+</html>

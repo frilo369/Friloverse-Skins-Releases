@@ -1,0 +1,16 @@
+{
+  "removed": [
+    {
+      "sha": "f7ff45db39ada819b281f884c8f7fecb3238d1ae",
+      "size": 8314253,
+      "name": "Blood Queen Fiora",
+      "reason": "LTK Manager refuses it: its base model uses another skin's mesh."
+    },
+    {
+      "sha": "3424c589461f194a5c5385aead316283c190a64b",
+      "size": 10322104,
+      "name": "Demon of Lightning Talon",
+      "reason": "LTK Manager refuses it: its base model uses another skin's mesh."
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "friloverse-logs",
+  "main": "src/worker.mjs",
+  "compatibility_date": "2026-05-01",
+  "r2_buckets": [
+    { "binding": "LOGS", "bucket_name": "friloverse-logs" },
+    // Divine downloads players saved to Local Skins (12.9): one record per skin, never deleted.
+    { "binding": "DOWNLOADS", "bucket_name": "friloverse-downloads" }
+  ],
+  // Three reports a minute per address: enough for a player, too few to fill the bucket.
+  "ratelimits": [
+    { "name": "LIMITER", "namespace_id": "4101", "simple": { "limit": 3, "period": 60 } },
+    // Twenty Divine downloads a minute per address: far more than a player clicks.
+    { "name": "DOWNLOAD_LIMITER", "namespace_id": "4102", "simple": { "limit": 20, "period": 60 } }
+  ],
+  "observability": { "enabled": true }
+}

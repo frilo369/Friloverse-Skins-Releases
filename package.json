@@ -1,0 +1,29 @@
+{
+  "name": "friloverse-skins",
+  "version": "13.1.0",
+  "private": true,
+  "license": "MIT",
+  "author": "FrYiLo",
+  "type": "module",
+  "description": "Champion-select skins for League of Legends: Riot and custom skins, loaded through LTK Manager.",
+  "main": "src/main.cjs",
+  "scripts": {
+    "start": "node scripts/start.mjs",
+    "preview": "node scripts/start.mjs --preview",
+    "test": "node scripts/test.mjs",
+    "check": "node scripts/check.mjs",
+    "build": "node scripts/build.mjs",
+    "build:complete": "node scripts/build-complete.mjs"
+  },
+  "devDependencies": {
+    "@electron/packager": "^20.3.0",
+    "electron": "^45.2.3",
+    "electron-winstaller": "^5.4.4"
+  },
+  "dependencies": {
+    "electron-squirrel-startup": "^1.0.1",
+    "koffi": "^3.3.6",
+    "ws": "^8.22.1",
+    "yauzl": "^3.4.0"
+  }
+}
