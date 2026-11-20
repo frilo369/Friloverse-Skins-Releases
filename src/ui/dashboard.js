@@ -288,6 +288,7 @@ function receive(state){
   applyTheme(settings.theme);
   $('start-with-windows').checked=settings.startWithWindows!==false;
   $('remember-last-skin').checked=settings.rememberLastSkin===true;
+  $('report-downloads').checked=settings.reportDownloads!==false;
   if(!guideCapturing)$('guide-key').textContent=`${hotkeyLabel(settings.guideHotkey)} · Change`;
   renderIssues(state);
   $('update-status').textContent=updateLine();
@@ -467,9 +468,9 @@ $('open-mods-folder').onclick=async()=>{
   catch(error){modsActionError=String(error.message||error);}
   $('mods-message').textContent=modsLine(current);
 };
-for(const [id,key] of [['start-with-windows','startWithWindows'],['remember-last-skin','rememberLastSkin']])$(id).onchange=async()=>{
+for(const [id,key] of [['start-with-windows','startWithWindows'],['remember-last-skin','rememberLastSkin'],['report-downloads','reportDownloads']])$(id).onchange=async()=>{
   try{await window.friloverse.action('set-setting',{key,value:$(id).checked});settingsError='';}
-  catch(error){settingsError=String(error.message||error);$(id).checked=key==='startWithWindows'?current?.settings?.[key]!==false:current?.settings?.[key]===true;}
+  catch(error){settingsError=String(error.message||error);$(id).checked=key==='startWithWindows'||key==='reportDownloads'?current?.settings?.[key]!==false:current?.settings?.[key]===true;}
   $('update-status').textContent=updateLine();
 };
 // Both checks show their progress in the top-left panel, so Settings closes out of the way (6.2).

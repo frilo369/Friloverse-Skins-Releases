@@ -22,6 +22,7 @@ VIAddVersionKey "LegalCopyright" "Copyright 2026 FrYiLo"
 !include "WordFunc.nsh"
 !include "StrFunc.nsh"
 !include "x64.nsh"
+!include "nsDialogs.nsh"
 ${StrRep}
 
 !define MUI_ABORTWARNING
@@ -29,6 +30,7 @@ ${StrRep}
 !define MUI_WELCOMEPAGE_TEXT "This installs Friloverse ${SHOWN} and everything it needs. There is nothing else to set up.$\r$\n$\r$\nFriloverse uses LTK Manager, separate free software by LeagueToolkit. If it is missing or out of date, setup downloads it from the official release and installs it in the background. Windows may ask for permission once."
 !define MUI_FINISHPAGE_TEXT "Friloverse is ready and running in your system tray. It starts with Windows.$\r$\n$\r$\nGo into champion select and it opens by itself, or click the gold star at the top left of the League client."
 !insertmacro MUI_PAGE_WELCOME
+Page custom ReportsPage ReportsLeave
 !define MUI_PAGE_CUSTOMFUNCTION_PRE ShowTermsIfNeeded
 !define MUI_PAGE_HEADER_TEXT "LTK Manager"
 !define MUI_PAGE_HEADER_SUBTEXT "Friloverse needs LTK Manager, and this PC does not have a usable copy."
@@ -44,6 +46,34 @@ Var LtkNeeded
 Var FriloverseDir
 Var InstalledVersion
 Var CheckResult
+Var ReportDialog
+Var ReportCheckbox
+Var ReportChoice
+
+; What Friloverse sends, shown before anything is installed (13.2). The one thing a player may not expect is the
+; Divine download report, so it has a box. Unticked, setup leaves a marker that Friloverse turns into its setting.
+Function ReportsPage
+  !insertmacro MUI_HEADER_TEXT "Privacy" "What Friloverse sends over the network."
+  nsDialogs::Create 1018
+  Pop $ReportDialog
+  ${If} $ReportDialog == error
+    Abort
+  ${EndIf}
+  ${NSD_CreateLabel} 0 0 100% 70u "Friloverse has no accounts and collects nothing about you. It connects to GitHub for updates and skin databases, to the League client on this PC, to the party relay while you are in a party, and to the Friloverse logs service only when you press Send logs.$\r$\n$\r$\nOne more thing: when you save a skin from Browse Divine Skins, Friloverse tells the developer which skin it was (its Divine address, champion, file name, size and hash) so popular skins can be added to the collection. Nothing about you is sent."
+  Pop $0
+  ${NSD_CreateCheckbox} 0 78u 100% 12u "Tell the developer which Divine skins I download"
+  Pop $ReportCheckbox
+  ${If} $ReportChoice != "0"
+    ${NSD_Check} $ReportCheckbox
+  ${EndIf}
+  ${NSD_CreateLabel} 0 96u 100% 24u "You can change this any time in Friloverse's Settings. Everything Friloverse connects to is listed in CODE_SIGNING_POLICY.md at github.com/frilo369/Friloverse-Skins-Releases."
+  Pop $0
+  nsDialogs::Show
+FunctionEnd
+
+Function ReportsLeave
+  ${NSD_GetState} $ReportCheckbox $ReportChoice
+FunctionEnd
 
 Function .onInit
   ${IfNot} ${RunningX64}
@@ -269,6 +299,11 @@ Function PreserveDatabase
 FunctionEnd
 
 Section "Install"
+  ${If} $ReportChoice == "0"
+    CreateDirectory "$APPDATA\friloverse-skins"
+    FileOpen $0 "$APPDATA\friloverse-skins\download-reports-off" w
+    FileClose $0
+  ${EndIf}
   InitPluginsDir
   SetOutPath "$PLUGINSDIR"
   Call WaitForGame

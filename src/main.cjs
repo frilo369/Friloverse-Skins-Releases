@@ -332,6 +332,11 @@ async function start() {
     state.appUpdateStatus='Friloverse settings could not be read; defaults are in use.';
   }
   if(!preview){
+    // The complete setup's privacy page leaves a marker when the player declines download reports.
+    try{
+      const {applyInstallerChoices}=await import('./settings.mjs');
+      if(await applyInstallerChoices(settingsStore,app.getPath('userData')))state.settings={...settingsStore.value};
+    }catch(error){errorLog.note('settings',`The installer's choices could not be applied: ${error.message}`);}
     const marker=path.join(app.getPath('userData'),'resume-in-tray');
     try{
       const [timestamp,x,y]=(await fs.readFile(marker,'utf8')).split(' ').map(Number);await fs.unlink(marker);
@@ -1711,6 +1716,7 @@ async function handleAction({kind,id,fromHistory=false}={}) {
     state.divineBusy=true;state.divineMessage='';emitState();
     try{
       await require('./divine-browser.cjs').browseDivine({parent:dashboard,root:localDatabase.root,champions:state.champions,
+        reportsAllowed:()=>state.settings?.reportDownloads!==false,
         onImported:(_saved,message)=>{customCards=null;state.divineMessage=message;emitState();}});
     }catch(error){state.divineMessage=error.message;}
     finally{state.divineBusy=false;emitState();}

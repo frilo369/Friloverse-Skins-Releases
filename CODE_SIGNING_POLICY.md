@@ -32,7 +32,9 @@ Friloverse does not collect accounts, names or addresses. It connects to these p
   (Cloudflare), kept 90 days.
 - **Divine Skins** (`divineskins.gg`), only when the player uses the in-app browser to download a skin. After a
   skin is saved, the program tells `friloverse-logs.ogfryilo.workers.dev` which skin it was (its
-  Divine address, champion, file name, size and hash). Nothing about the player is stored.
+  Divine address, champion, file name, size and hash). Nothing about the player is stored. The complete setup
+  shows this on its privacy page, where it can be declined, and Settings → "Tell the developer which Divine skins
+  I download" turns it off at any time. With it off nothing is sent.
 - **CommunityDragon, Tencent and MetaSRC**, for picture and guide data.
 
 ## Reporting a problem

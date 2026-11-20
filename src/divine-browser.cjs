@@ -110,10 +110,12 @@ async function downloadSkin({page,dir,root,champion,champions,ses,api,onProgress
 
 // Only this window's isolated main-frame preload can request an import. The trusted main
 // process chooses the URL and destination; the dashboard preload is never used on Divine.
-// `reportDownload` (12.9): records each saved skin for the owner; tests pass their own.
-async function browseDivine({parent,root,champions,onImported=()=>{},reportDownload}){
+// `reportDownload` (12.9): records each saved skin for the owner; tests pass their own. `reportsAllowed`
+// (13.2) is the player's Settings choice; with it off nothing is sent.
+async function browseDivine({parent,root,champions,onImported=()=>{},reportDownload,reportsAllowed=()=>true}){
   const api=await import('./divine-skins.mjs');
   reportDownload??=row=>api.reportDivineDownload({...row,version:app.getVersion()});
+  const reportIfAllowed=row=>reportsAllowed()?reportDownload(row):false;
   const ses=session.fromPartition('persist:divine-catalogue');
   ses.setPermissionCheckHandler(()=>false);
   ses.setPermissionRequestHandler((_contents,_permission,reply)=>reply(false));
@@ -192,7 +194,7 @@ async function browseDivine({parent,root,champions,onImported=()=>{},reportDownl
         if(!saved)return {message:'The download was closed.'};
         const message=saved.already?`Already in ${saved.folder}’s Local Skins.`:`Imported ${saved.name} into ${saved.folder}’s Local Skins.`;
         onImported(saved,message);
-        void Promise.resolve().then(()=>reportDownload({route:pick.route,champion:champion.id,file:path.join(root,saved.folder,saved.name)})).catch(()=>{});
+        void Promise.resolve().then(()=>reportIfAllowed({route:pick.route,champion:champion.id,file:path.join(root,saved.folder,saved.name)})).catch(()=>{});
         return {saved:true,message};
       }finally{jobs.delete(job);}
     }catch(error){return {message:error.message};}

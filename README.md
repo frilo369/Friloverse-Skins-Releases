@@ -210,6 +210,10 @@ install on a machine without the Riot skin database.
 
 ## License and credits
 
+Friloverse sends nothing about the player. The one report it makes without being asked, which Divine skin was
+saved from Browse Divine Skins, is described in the setup's privacy page and can be turned off in Settings; every
+connection is listed in [CODE_SIGNING_POLICY.md](CODE_SIGNING_POLICY.md).
+
 Friloverse's source code is released under the [MIT License](LICENSE). Pictures and data from League of
 Legends, other artists' artwork and the Cinzel font are not covered by it; see
 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). Friloverse includes

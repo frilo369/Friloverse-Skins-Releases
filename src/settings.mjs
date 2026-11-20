@@ -1,4 +1,4 @@
-import {readFile} from 'node:fs/promises';
+import {readFile,rm} from 'node:fs/promises';
 import path from 'node:path';
 import {writeAtomic} from './atomic-file.mjs';
 import {parseShortcut} from './guide-shortcut.mjs';
@@ -8,7 +8,7 @@ import {parseShortcut} from './guide-shortcut.mjs';
 // Friloverse is the default until the player picks a theme (themePicked), and their pick then stays through
 // updates. 8.1 (owner's request) put every player on it once: a file without themeMoved was saved before that,
 // so its theme is set aside. The first save writes the flag, and picks made from then on are kept.
-export const DEFAULT_SETTINGS=Object.freeze({startWithWindows:true,guideHotkey:'F1',theme:'friloverse',themePicked:false,themeMoved:true,rememberLastSkin:false});
+export const DEFAULT_SETTINGS=Object.freeze({startWithWindows:true,guideHotkey:'F1',theme:'friloverse',themePicked:false,themeMoved:true,rememberLastSkin:false,reportDownloads:true});
 const valid=(key,value)=>key==='guideHotkey'?!!parseShortcut(value):key==='theme'?typeof value==='string'&&/^[a-z0-9-]{1,40}$/.test(value):typeof value==='boolean';
 export class SettingsStore {
   constructor(dataDir){this.file=path.join(dataDir,'settings.json');this.value={...DEFAULT_SETTINGS};this.saving=Promise.resolve();}
@@ -34,4 +34,15 @@ export class SettingsStore {
     this.value=next;
     return {...next};
   }
+}
+
+/** The complete setup's privacy page (13.2) leaves this marker when the player unticks "tell the developer which
+ *  Divine skins I download". It is taken into the settings once and removed. Returns whether it was there. */
+export const DOWNLOAD_REPORTS_OFF_MARKER='download-reports-off';
+export async function applyInstallerChoices(store,dataDir){
+  const marker=path.join(dataDir,DOWNLOAD_REPORTS_OFF_MARKER);
+  try{await readFile(marker);}catch(error){if(error.code==='ENOENT')return false;throw error;}
+  await store.set('reportDownloads',false);
+  await rm(marker,{force:true});
+  return true;
 }

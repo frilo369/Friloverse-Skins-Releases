@@ -94,3 +94,11 @@ test('a saved Divine skin is reported by its link, champion, file and Git blob h
   assert.equal(await reportDivineDownload({route:'/a/b',champion:'Darius',file,version:'12.9.0',fetchFn:async()=>{throw new Error('offline');}}),false);
   assert.equal(await reportDivineDownload({route:'/a/b',champion:'Darius',file:path.join(root,'missing'),version:'12.9.0'}),false);
 });
+
+test('the Divine browser only reports a download while the player has reports switched on (13.2)',async()=>{
+  const browser=await import('node:fs/promises').then(fs=>fs.readFile(new URL('../src/divine-browser.cjs',import.meta.url),'utf8'));
+  const main=await import('node:fs/promises').then(fs=>fs.readFile(new URL('../src/main.cjs',import.meta.url),'utf8'));
+  assert.match(browser,/reportsAllowed\(\)\?reportDownload\(row\)/);
+  assert.doesNotMatch(browser,/then\(\(\)=>reportDownload\(/);
+  assert.match(main,/reportsAllowed:\(\)=>state\.settings\?\.reportDownloads!==false/);
+});
